@@ -9,4 +9,12 @@
  - Конфигурации (dedicated.pak -> content folder)
  - GameScriptsC_X64.pak (необходимый для .lua скриптинга, который выполняет AI-система)
 
+t.me/onlypdb
+t.me/onlypdb
+t.me/onlypdb
+t.me/onlypdb
+t.me/onlypdb
+t.me/onlypdb
+
+
 
