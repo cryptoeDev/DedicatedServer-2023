@@ -1,0 +1,111 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Исходные файлы">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Файлы заголовков">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Файлы ресурсов">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Исходные файлы\MH">
+      <UniqueIdentifier>{50c7d81b-78fc-4859-b0c0-f461563624c2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Исходные файлы\dedicated">
+      <UniqueIdentifier>{545619c0-6ac6-4266-93f3-94f68979736c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Исходные файлы\dedicated\configurations">
+      <UniqueIdentifier>{450800ef-31e9-4cd5-9258-2cda6c750381}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
+    <ClCompile Include="MH\hde64.cpp">
+      <Filter>Исходные файлы\MH</Filter>
+    </ClCompile>
+    <ClCompile Include="MH\hook.cpp">
+      <Filter>Исходные файлы\MH</Filter>
+    </ClCompile>
+    <ClCompile Include="MH\trampoline.cpp">
+      <Filter>Исходные файлы\MH</Filter>
+    </ClCompile>
+    <ClCompile Include="MH\buffer.cpp">
+      <Filter>Исходные файлы\MH</Filter>
+    </ClCompile>
+    <ClCompile Include="MH\hde32.cpp">
+      <Filter>Исходные файлы\MH</Filter>
+    </ClCompile>
+    <ClCompile Include="Utils.hpp">
+      <Filter>Файлы заголовков</Filter>
+    </ClCompile>
+    <ClCompile Include="pugixml.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
+    <ClCompile Include="Defines.hpp">
+      <Filter>Файлы заголовков</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Clasess.hpp">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+    <ClInclude Include="MH\hde64.h">
+      <Filter>Исходные файлы\MH</Filter>
+    </ClInclude>
+    <ClInclude Include="MH\MinHook.h">
+      <Filter>Исходные файлы\MH</Filter>
+    </ClInclude>
+    <ClInclude Include="MH\pstdint.h">
+      <Filter>Исходные файлы\MH</Filter>
+    </ClInclude>
+    <ClInclude Include="MH\table32.h">
+      <Filter>Исходные файлы\MH</Filter>
+    </ClInclude>
+    <ClInclude Include="MH\table64.h">
+      <Filter>Исходные файлы\MH</Filter>
+    </ClInclude>
+    <ClInclude Include="MH\trampoline.h">
+      <Filter>Исходные файлы\MH</Filter>
+    </ClInclude>
+    <ClInclude Include="MH\buffer.h">
+      <Filter>Исходные файлы\MH</Filter>
+    </ClInclude>
+    <ClInclude Include="MH\hde32.h">
+      <Filter>Исходные файлы\MH</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK.hpp">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+    <ClInclude Include="pugixml.hpp">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+    <ClInclude Include="pugiconfig.hpp">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+    <ClInclude Include="types.hpp">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+    <ClInclude Include="structures.hpp">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+    <ClInclude Include="hookhandler.hpp">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+    <ClInclude Include="TelemetryStream.hpp">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+    <ClInclude Include="AI.hpp">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+    <ClInclude Include="AntiCheat.hpp">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
