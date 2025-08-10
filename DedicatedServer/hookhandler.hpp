@@ -30,7 +30,7 @@
 namespace OnlineAccount_p {
     extern const char* login = "dedicated";
     extern const char* pwd = "dedicated";
-    extern const char* master_server = "main_pve_001";
+    extern const char* master_server = "main_pvp_pro_001";
     extern const char* sw_port = "+sv_port";
 }
 
@@ -310,6 +310,7 @@ char __fastcall CGame_InitHook(CGame* this1, IGameFramework* pFramework) {
     pConsole->RegisterInt("ai_RODLowHealthMercyTime", 0, 0, "Custom line for initializing the setserver channel", 0);
     pConsole->RegisterInt("ai_UseAlternativeReadability", 0, 0, "Custom line for initializing the setserver channel", 0);
     pConsole->RegisterInt("ai_reaction_audio_range_aggressive", 0, 0, "Custom line for initializing the setserver channel", 0);
+    pConsole->RegisterInt("ai_enable_occlusion_trigger", 0, 0, "Custom line for initializing the setserver channel", 0);
     pConsole->RegisterInt("ai_reaction_audio_range_threatening", 0, 0, "Custom line for initializing the setserver channel", 0);
     pConsole->RegisterInt("ai_reaction_audio_range_interesting", 0, 0, "Custom line for initializing the setserver channel", 0);
     pConsole->RegisterInt("ai_reaction_audio_time_aggressive", 0, 0, "Custom line for initializing the setserver channel", 0);
@@ -420,7 +421,6 @@ char __fastcall CActor_SetPhysicalizationProfileHook(CActor* a1, EActorPhysProfi
 {
     char result = CActor_SetPhysicalizationProfile(a1, a2);
     a1->m_pGameObjcet->ChangedNetworkState(0x2000000i64);
-
     return result;
 }
 void CryLogAlwaysRelease(const char* format, ...)
@@ -669,6 +669,15 @@ __int64 __fastcall CMissionBackend_OnMissionLoad(
     if (ret == 2)  PrintToConsole("Loading Mission: not_owner!\n", GREEN);
     PrintToConsole("===============================\n", YELLOW);
 
+    CGame* pGAME = CGame::Signlenton(); if (!pGAME) return 0;
+    COnlineAccount* pAccount = pGAME->GetAccount(); if (!pAccount) return 0;
+
+
+    typedef void(__cdecl* COnlineVariables__LoadVariables)(OnlineVariables* this1, XmlNodeRef* a3); //0x28 + 0x60
+    COnlineVariables__LoadVariables((COnlineVariables__LoadVariables)0x14167ED60)(pAccount->GetVariables(), &config->online_variables_config);
+
+
+     //   COnlineVariables__LoadVariables(onlineacc + offset, config->online_variables)
 
 
     return ret;
@@ -935,8 +944,8 @@ void __fastcall GameRules_ProcessEvent(CGameRules* this1, SEntityEvent* event) {
 }
 
 
-bool __fastcall CPlayer_CreateInputClassByType(CPlayer* this1, int nPlayerInputType) {
 
+bool __fastcall CPlayer_CreateInputClassByType(CPlayer* this1, int nPlayerInputType) {
     if (nPlayerInputType == 3) {
         return CPlayer_CreateInputClassByType_p(this1, 2);
     }
@@ -1465,7 +1474,7 @@ void LogKill(int profile_id,
     const char* slide_kill = "false",
     const char* jump_kill = "false")
 {
-
+    //return;
     if (profile_id != id_for_jump) jump_kill = "false";
     if (profile_id != id_for_slide) slide_kill = "false";
 
@@ -1636,6 +1645,8 @@ void Reward_Player(CGameRules* pGameRules, IGameFramework* pGameFramework, int h
 
     SCVars* pCvars = SCVars::Singlenton(); if (!pCvars) return;
 
+
+
     //std::string url = createUrl(death_player, "null", "player_death_weaponisnull", "death_player");
     //
     //HINTERNET hInternet4 = InternetOpen("HTTPGET", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
@@ -1656,6 +1667,7 @@ void Reward_Player(CGameRules* pGameRules, IGameFramework* pGameFramework, int h
 
     typedef int(__fastcall* CActor_GetProfileId)(CPlayer*);
     int idplayerforshooter = CActor_GetProfileId((CActor_GetProfileId)0x141239700)(pPlayer);
+
 
     //printf("fdslfdlsldflfdsl :%i\n", m_pShoterPlayer->Stance());
 
@@ -2534,26 +2546,28 @@ void __fastcall CGameRules_AwardPlayer(
 
 
                 if (!strstr(eventName, "kill")) {
-
+                
                     if (strstr(eventName, "dogtags")) {
-
+                
                         SendTrackerNotify(0x1414B4F40)(this1, 38, id, 1);
                         SendTrackerNotify(0x1414B4F40)(this1, 38, id, 0);
-
                     }
-
+                
                     LogKill(
                         id,
                         m_pAvardPlayer->GetEntity()->GetName(),
                         0,
-                        0,
+                        "",
                         eventName,
-                        pCVars->g_VictoryCondition(), "", 0,
-                        "",
-                        "",
-                        "",
-                        "",
-                        0
+                        pCVars->g_VictoryCondition(), "", false,
+                        GetStanceName(m_pAvardPlayer->m_state),
+                        GetStanceName(m_pAvardPlayer->m_state),
+                        GetClassToChar(m_pAvardPlayer->GetCurrentClassId()),
+                        GetClassToChar(m_pAvardPlayer->GetCurrentClassId()),
+                        0.0f,
+                        pGameFramework->GetLevelName(),
+                        is_slide_player ? "true" : "false",
+                        is_jump_player ? "true" : "false"
 
                     );
                 }
@@ -2677,48 +2691,8 @@ bool __cdecl ZipDir__CacheFactory__ReadHeaderData(void* this1, void* pDest, unsi
     return ret;
 }
 
-template <typename F> struct Lineseg_tpl {
 
-    Vec3 start;
-    Vec3 end;
 
-    //default Lineseg constructor (without initialisation)
-    inline Lineseg_tpl(void) {}
-    inline Lineseg_tpl(const Vec3& s, const Vec3& e) { start = s; end = e; }
-    inline void operator () (const Vec3& s, const Vec3& e) { start = s; end = e; }
-
-    Vec3 GetPoint(F t) const { return t * end + (F(1.0) - t) * start; }
-
-    ~Lineseg_tpl(void) {};
-};
-
-typedef Lineseg_tpl<float> Lineseg;
-
-struct SM_Network__SMessage
-{
-    void* ptr; //0x0000
-    int type;  //0x0008
-    int msgType; //0x0012
-    __int64 serverTime; //0x0016
-    int opcode;         // 0x0024
-    char instant;       // 0x0028
-}; //size 0x0032
-
-struct SM_Network__SCoopAssistMessage : public SM_Network__SMessage
-{
-    int animIndex;
-    bool singleClimb;
-    Vec3 animStartPos;
-    Vec3 helperClosestPoint;
-    int climber;
-    Lineseg edge;
-    __int64 ServerStartFrame;
-};
-
-struct SM_Network__SCoopClimbMessage : public SM_Network__SMessage
-{
-    int targetId;
-};
 
 typedef void(__fastcall* SendMessageFromServer_0)(CActor*, SM_Network__SCoopAssistMessage*);
 typedef void(__fastcall* nCSM_CoopAssist__Finish)(void*);
@@ -2785,7 +2759,28 @@ struct SKnockBackMessage : SM_Network__SMessage {
     Vec3_tpl<float> startPos;
     void* standingOn;
 }; //Size=0x0040
+
+
+
+
+
+
+struct CPlayer_MethodInfo_ClHoldEntityMessage {
+
+};
+
+struct MethodInfo_SvHoldEntityMessage {
+public:
+
+};
+struct SHoldEntityMessage {
+
+};
+
+
 typedef void(__fastcall* SendMessageFromServer_Knockback)(CActor*, SKnockBackMessage*);
+typedef void(__fastcall* SendMessageFromServer_Knockback_0)(CPlayer*, SKnockBackMessage*);
+typedef void(__fastcall* SendMessageFromServer_Knockback_3)(CActor*, SKnockBackMessage*);
 
 void __fastcall CSM_CoopClimb__Finish(void* this1)
 {
@@ -2856,14 +2851,14 @@ void __fastcall CSM_CoopClimb__Finish(void* this1)
    
         Vec3 v;
 
-        typedef void(__cdecl* CPlayer_GetSpawnAnimationEnd)(CActor* this1, Vec3_tpl<float>* result);
-        CPlayer_GetSpawnAnimationEnd((CPlayer_GetSpawnAnimationEnd)0x141242680)(m_pPlayer, &v);
-        m_pPlayer->m_pGameObjcet->ChangedNetworkState(128u);
+        //typedef void(__cdecl* CPlayer_GetSpawnAnimationEnd)(CActor* this1, Vec3_tpl<float>* result);
+        //CPlayer_GetSpawnAnimationEnd((CPlayer_GetSpawnAnimationEnd)0x141242680)(m_pPlayer, &v);
+       // m_pPlayer->m_pGameObjcet->ChangedNetworkState(128u);
      //141523550
-        Vec3 slideDir = Vec3(ZERO);
-        typedef void(__cdecl* CPlayer__SetSlide)(CActor*, bool, Vec3);
-        CPlayer__SetSlide((CPlayer__SetSlide)0x1412272C0)(m_pPlayer, 0, slideDir);
-        *(BYTE*)((DWORD64)m_pPlayer + 3695) = 0;
+       // Vec3 slideDir = Vec3(ZERO);
+       // typedef void(__cdecl* CPlayer__SetSlide)(CActor*, bool, Vec3);
+       // CPlayer__SetSlide((CPlayer__SetSlide)0x1412272C0)(m_pPlayer, 0, slideDir);
+       // *(BYTE*)((DWORD64)m_pPlayer + 3695) = 0;
 
         SKnockBackMessage msg;
         memset(&msg, 0, sizeof(SKnockBackMessage));
@@ -2916,26 +2911,34 @@ struct CServerMovementProcessor
     void* m_lock;
 };
 
-typedef void(__fastcall* CserverMovementClass)(CServerMovementProcessor* a1);
-CserverMovementClass CServerMovementProcessor_Update_p = (CserverMovementClass)0x1418CD140;
-
-void __fastcall CServerMovementProcessor_Update(CServerMovementProcessor* a1)
+void __fastcall CIngameShop_BuyOffer(CIngameShop* this1, SIngameShopOffer const* offer,EntityId entityId)
 {
-    if (TargetPlayer != NULL && AIPlayer != NULL) {
+    typedef bool(__cdecl* OnBuyOffer)(CIngameShop* this1, EntityId entityId, const char* offerName);
+    
+    //if (this1->m_isInSync) {
+    //    printf("[CIngameShop]: BuyOffer - previous call is in progress, ignore\n");
+    //}
+    //else {
+    //    this1->m_isInSync = 1;
+    //    if (entityId) {
+    //        
+    //        return OnBuyOffer((OnBuyOffer)0x14125A540)(this1, entityId, offer->name.m_str);
+    //        //sub_14125A540(a1, v3, *(a2 + 8));
+    //    }
+    //    //14125C470
+    //
+    //    typedef EntityId(__cdecl* PickTeamRepresentative)();
+    //    EntityId v3 = PickTeamRepresentative((PickTeamRepresentative)0x14125C470)();
+    //    if (v3) {
+    //        return OnBuyOffer((OnBuyOffer)0x14125A540)(this1, entityId, offer->name.m_str);
+    //    }
+    //    printf("[CIngameShop::BuyOffer] Failed picking representative for players team!\n");
+    //
+    //}
 
-        //a1->m_player = TargetPlayer;
-        a1->m_lastAppliedCmd.moveDir = Vec3(50, 50, 50);
-        a1->m_lastAppliedCmd.N = 1;
-        a1->m_lastAppliedCmd.zoom = 0;
-        a1->m_lastAppliedCmd.generated = 0;
-        a1->m_lastAppliedCmd.slide = 0;
-        a1->m_lastAppliedCmd.use = 0;
-        a1->m_lastAppliedCmd.stateChecksum = 0;
-        a1->m_lastAppliedCmd.lookDir = AIPlayer->GetEntity()->GetWorldTM().GetTranslation();
-        a1->m_lastAppliedCmd.jump = true;
-    }
-    CServerMovementProcessor_Update_p(a1);
-
+    OnBuyOffer((OnBuyOffer)0x14125A540)(this1, entityId, offer->name.m_str);
+    
+    ShopBuyOffer_p(this1, offer, entityId);
 }
 
 
@@ -2964,7 +2967,7 @@ void __fastcall MovementCore_Move(CPlayer* player, MovementCore_SMovementCmd* cm
             id_for_slide = id;
 
             is_slide_player = 0;
-            player->is_sliding = 0;
+            
         }
     }
     else if (newState_inSlide)
@@ -2972,7 +2975,7 @@ void __fastcall MovementCore_Move(CPlayer* player, MovementCore_SMovementCmd* cm
         id_for_slide = id;
         is_slide_player = 1;
 
-        player->is_sliding = 1;
+        
 
         //printf("in_slide!\n");
         //Vec3 slideDir = *(Vec3*)(in_state + 0x28);
@@ -2990,13 +2993,13 @@ void __fastcall MovementCore_Move(CPlayer* player, MovementCore_SMovementCmd* cm
         if (!newState_inJump) {
             id_for_jump = id;
             is_jump_player = 0;
-            player->is_jumped = 0;
+            
         }
     }
     else if (newState_inJump) {
         id_for_jump = id;
         is_jump_player = 1;
-        player->is_jumped = 1;
+       
     }
 
 }
@@ -3130,5 +3133,99 @@ bool __fastcall CActor_NetSerialize(
     return CActor_NetSerialize_p(this1, ser, aspect, profile, pflags);
 }
 
+
+
+
+
+
+__int64 __fastcall Teleport_Shield(__int64 a1, unsigned __int16 a2, SPathFindParams* params)
+{
+    SSystemGlobalEnvironment* pSSGE = SSystemGlobalEnvironment::Singleton(); if (!pSSGE) return 1;
+    IEntitySystem* pEntitiesSystem = pSSGE->GetEntitySystem(); if (!pEntitiesSystem) return 1;
+    IEntityIterator* pEntityIterator = pEntitiesSystem->GetEntityIt(); if (!pEntityIterator) return 1;
+
+    IGameFramework* pGameFramework = IGameFramework::Singlenton(); if (!pGameFramework) return 1;
+
+    SKnockBackMessage msg;
+
+    while (IEntity* pEntity = pEntityIterator->Next()) {
+        if (CPlayer* pActor = pGameFramework->GetActorSystem()->GetPlayer(pEntity->Id()))
+        {
+            printf("%s\n", params->m_pEntity->Name());
+
+
+            memset(&msg, 0, sizeof(SKnockBackMessage));
+            {
+                msg.type = 1;
+                msg.msgType = 0;
+                msg.opcode = 0;
+                msg.startPos = pActor->GetEntity()->GetWorldTM().GetTranslation();
+            }
+            SendMessageFromServer_Knockback_0((SendMessageFromServer_Knockback_0)0x1416BB620)(pActor, &msg);
+            SKnockBackMessage msg1;
+            memset(&msg1, 0, sizeof(SKnockBackMessage));
+            {
+                msg1.type = 1;
+                msg1.msgType = 1;
+                msg1.opcode = 0;
+                msg1.startPos = pActor->GetEntity()->GetWorldTM().GetTranslation();
+            }
+            SendMessageFromServer_Knockback_0((SendMessageFromServer_Knockback_0)0x1416BB620)(pActor, &msg1);
+        }
+    }
+
+
+  
+    //1416C0D60
+    return TeleportShield_p(a1, a2, params);
+}
+
+
+
+int q = 0;
+
+void __fastcall CSMInteraction__Finish(CSM_InteractionAction* this1, __int64 a2, bool a3) { // CSM_HoldEntity_Finish
+    SSystemGlobalEnvironment* pSSGE = SSystemGlobalEnvironment::Singleton(); if (!pSSGE) return;
+    IEntitySystem* pEntitiesSystem = pSSGE->GetEntitySystem(); if (!pEntitiesSystem) return;
+    IEntityIterator* pEntityIterator = pEntitiesSystem->GetEntityIt(); if (!pEntityIterator) return;
+    printf("CSMInteraction__Finish\n");
+     // [esp+18h] [ebp-34h] BYREF
+
+    CryStringT<char>::StrHeader hdr;
+    hdr.nRefCount = -1;
+    hdr.nLength = 0;
+
+    SInteractionActionMessage msg;
+
+
+    printf("state is: %i\n", this1->m_pPlayer->GetMovementSMState().holdEntity);
+
+    memset(&msg, 0, sizeof(SInteractionActionMessage));
+    {
+        msg.type = 0xA;
+        msg.msgType = 1;
+        msg.instant = 0;
+        msg.opcode = -1;
+        msg.itemName = { 0, &hdr };
+        msg.entityId = this1->m_pPlayer->GetMovementSMState().holdEntity;
+        msg.serverTime = SSystemGlobalEnvironment::Singleton()->GetTimer()->GetFrameTimer();
+    }
+    CActor* pActor = this1->m_pPlayer; if (!pActor) return;
+    IGameObject* m_pObject = pActor->m_pGameObjcet;
+
+    auto method = m_pObject->CreateClimb(&msg);
+
+    if (method) {
+        ::_InterlockedIncrement((volatile unsigned __int32*)((__int64)method + 0x38));
+        m_pObject->DoInvokeRMI(&method, 65544, -1); // 65544
+    }
+
+ //   CSM_InteractionAction_p(this1, a2, a3);
+}
+
+void __fastcall SADSDFSDFSDFSDF31QQ(__int64 a1)
+{
+    return;
+}
 
 

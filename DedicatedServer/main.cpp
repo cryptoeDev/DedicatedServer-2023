@@ -131,6 +131,20 @@ void FixConnectionDedicated() {
     /* фикс магазина (в игре, за монеты) */
 
     SetPath((void*)0x14125B6B5, "\xEB", 1);
+    //SetPath((void*)0x000000014125B6FB, "\x90\x90\x90\x90\x90\x90\x90", 7);
+    //SetPath((void*)0x000000014125B6DB, "\x90\x90", 2);
+    SetPath((void*)0x000000014125A574, "\xEB", 1);
+    SetPath((void*)0x000000014125A57D, "\xEB", 1);
+   // SetPath((void*)0x000000014125BA60, "\x0F\x85", 2);
+    SetPath((void*)0x000000014125B028, "\x90\x90", 2);
+    SetPath((void*)0x000000014125B03D, "\x74", 1);
+
+
+
+
+    /* fix vosxod_act1 */
+
+    SetPath((void*)0x1415D7FCF, "\x75", 1);
 
 
     /* фикс [FlowGraphProxy] Skipped loading of FG 'entityId' flowGraphs  */
@@ -429,6 +443,7 @@ DWORD WINAPI InitAll(LPVOID lpP)
 
         MhCreateAndEnableHook((void*)0x140381DA0, SSADSDFSDFSDFSDF27, (LPVOID*)&SADSDFSDFSDFSDF27_p);
         MhCreateAndEnableHook((void*)0x14152C6F0, SSADSDFSDFSDFSDF28, (LPVOID*)&SADSDFSDFSDFSDF28_p);
+        MhCreateAndEnableHook((void*)0x1418F7080, SADSDFSDFSDFSDF31QQ, (LPVOID*)&SADSDFSDFSDFSDF31_p);
 
         /*
         
@@ -436,7 +451,7 @@ DWORD WINAPI InitAll(LPVOID lpP)
         
         */
 
-        //MhCreateAndEnableHook(mCScriptBind_System__LogString, CScriptBind_System__LogString, (LPVOID*)&mCScriptBind_System__LogString);
+        MhCreateAndEnableHook(mCScriptBind_System__LogString, CScriptBind_System__LogString, (LPVOID*)&mCScriptBind_System__LogString);
         MhCreateAndEnableHook(mCScriptSystem_ErrorHandler_Hook, CScriptSystem_ErrorHandler_Hook, (LPVOID*)&mCScriptSystem_ErrorHandler_Hook);
         //MhCreateAndEnableHook(mnsub_AD08E0, sub_AD08E0, (LPVOID*)&mnsub_AD08E0);
 
@@ -457,7 +472,10 @@ DWORD WINAPI InitAll(LPVOID lpP)
         MhCreateAndEnableHook(*mCSM_CoopAssist__Finish, CSM_CoopAssist__Finish, (LPVOID*)&mCSM_CoopAssist__Finish);
         MhCreateAndEnableHook(*mCSM_CoopClimb__Finish, CSM_CoopClimb__Finish, (LPVOID*)&mCSM_CoopClimb__Finish);
        //MhCreateAndEnableHook(*CSM_VaultFinsih_p, CSM_Vault_Finish, (LPVOID*)&CSM_VaultFinsih_p);
-        //MhCreateAndEnableHook(*MovementCore_Move_p, MovementCore_Move, (LPVOID*)&MovementCore_Move_p);
+        MhCreateAndEnableHook(*MovementCore_Move_p, MovementCore_Move, (LPVOID*)&MovementCore_Move_p);
+        MhCreateAndEnableHook(*ShopBuyOffer_p, CIngameShop_BuyOffer, (LPVOID*)&ShopBuyOffer_p);
+        MhCreateAndEnableHook(*CSM_InteractionAction_p, CSMInteraction__Finish, (LPVOID*)&CSM_InteractionAction_p);
+        //MhCreateAndEnableHook(*TeleportShield_p, Teleport_Shield, (LPVOID*)&TeleportShield_p);
         //MhCreateAndEnableHook(*CServerMovementProcessor_Update_p, CServerMovementProcessor_Update, (LPVOID*)&CServerMovementProcessor_Update_p);
 
         //MhCreateAndEnableHook(*CActor_NetSerialize_p, CActor_NetSerialize, (LPVOID*)&CActor_NetSerialize_p);

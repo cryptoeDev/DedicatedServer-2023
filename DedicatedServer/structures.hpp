@@ -122,8 +122,7 @@ struct SEntityLoadParams {};
 struct SMissionLoadSerializer__SMissionLoadConfigs {
 public:
     XmlNodeRef anticheat_config;
-    XmlNodeRef anticheat_config1;
-    void* online_variables_config;
+    XmlNodeRef online_variables_config;
 };
 
 struct SGameContextParams
@@ -462,6 +461,13 @@ public:
     CActorInventory m_inventory;
 };
 
+struct SSpecialMovementState {
+public:
+    char pad_0x0x168[0x168];
+    unsigned int holdEntity;
+};
+
+
 struct CActor
 {
 public:
@@ -470,6 +476,18 @@ public:
     char pad_0x20[0x20];
     unsigned int m_entityId;
     EActorPhysProfiles m_physicalizationProfile;
+
+    //0x1010
+
+    SSpecialMovementState GetMovementSMState() {
+        return *(SSpecialMovementState*)((DWORD64)this + 0x1010);
+    }
+
+
+    unsigned int holdEntity() {
+        return *(unsigned int*)((DWORD64)this + 4280);
+    }
+
 
     int Id() {
         return *(int*)((DWORD64)this + 0x20);
@@ -491,6 +509,9 @@ public:
         return *(CSMMovementController**)((DWORD64)this + 0x200);
     }
 
+    bool IsLocalClient() {
+        return CallFunction<bool(__fastcall*)(PVOID64)>(this, 0x380)(this);
+    }
 
     void SetPhysicalizationProfile(EActorPhysProfiles profile) {
         CallFunction<void(__fastcall*)(PVOID64, EActorPhysProfiles)>(this, 0x3E0)(this, profile);
@@ -529,7 +550,28 @@ public:
     }
 };
 
+struct CSpecialMove {
+public:
+    void* __vftable /*VFT*/;
+    const CSpecialMoveClass* m_pClass;
+    CActor* m_pPlayer;
+};
 
+enum EInstallState : __int32
+{
+    Denied = 0x0,
+    Allowed = 0x1,
+    Started = 0x2,
+};
+
+
+struct CSM_InteractionAction : CSpecialMove {
+public:
+    const CTimeValue m_allowActionEventTime;
+    CTimeValue m_lastInstallCheckTime;
+    CTimeValue m_modelAttachTime;
+    EInstallState m_installState;
+};
 
 class Pointer {
 public:

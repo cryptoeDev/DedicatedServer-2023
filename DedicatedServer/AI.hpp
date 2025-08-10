@@ -1,4 +1,6 @@
 #include <unordered_map>
+#include <chrono>
+#include <chrono>
 void MhCreateAndEnableHook_AI(LPVOID pTarget, LPVOID pDetour, LPVOID* ppOriginal) {
 
 	bool F1Set = false;
@@ -714,80 +716,7 @@ Vec3 GetAvoidanceDirection(AIActor* pAIActor, Vec3 vNewDirection, Vec3 vCurrentP
 	vNewDirection = vNewDirection.GetNormalized();
 	const float rayLength = 1.5f;
 
-	if (pAIActor->state == MOVING_TO_TARGET)
-	{
-		if (isRay(vCurrentPosition, vNewDirection))
-		{
-			pAIActor->state = AVOIDING_OBSTACLE;
-
-			Vec3 leftDir = Vec3(vNewDirection.z, 0, -vNewDirection.x);
-			Vec3 rightDir = Vec3(-vNewDirection.z, 0, vNewDirection.x);
-
-			bool leftFree = !isRay(vCurrentPosition, leftDir); // IsBlocked
-			bool rightFree = !isRay(vCurrentPosition, rightDir);
-
-			if (leftFree && !rightFree)
-				pAIActor->avoidanceDirection = leftDir;
-			else if (!leftFree && rightFree)
-				pAIActor->avoidanceDirection = rightDir;
-			else if (leftFree && rightFree)
-			{
-				// Выбираем направление, ближе к цели
-				Vec3 toTarget = (vTargetPosition - vCurrentPosition).GetNormalized();
-				if (leftDir.Dot(toTarget) > rightDir.Dot(toTarget))
-					pAIActor->avoidanceDirection = leftDir;
-				else
-					pAIActor->avoidanceDirection = rightDir;
-			}
-			else
-			{
-				
-				pAIActor->avoidanceDirection = +vNewDirection;
-			}
-
-			return pAIActor->avoidanceDirection;
-		}
-		else
-		{
-			// Путь свободен, двигаемся к цели
-			return vNewDirection;
-		}
-	}
-	else if (pAIActor->state == AVOIDING_OBSTACLE)
-	{
-		if (isRay(vCurrentPosition, pAIActor->avoidanceDirection))
-		{
-			// Обход свободен, идем в обходном направлении
-			return pAIActor->avoidanceDirection;
-		}
-		else
-		{
-			// Обход заблокирован, пытаемся сменить сторону
-			Vec3 leftDir = Vec3(vNewDirection.z, 0, -vNewDirection.x);
-			Vec3 rightDir = Vec3(-vNewDirection.z, 0, vNewDirection.x);
-
-			bool leftFree = !isRay(vCurrentPosition, leftDir);
-			bool rightFree = !isRay(vCurrentPosition, rightDir); //rayLength IsBlocked
-
-			if (leftFree)
-			{
-				pAIActor->avoidanceDirection = leftDir;
-				return leftDir;
-			}
-			else if (rightFree)
-			{
-				pAIActor->avoidanceDirection = rightDir;
-				return rightDir;
-			}
-			else
-			{
-				// Нет вариантов — идем назад
-				pAIActor->avoidanceDirection = +vNewDirection;
-				return pAIActor->avoidanceDirection;
-			}
-		}
-	}
-	return vNewDirection;
+	
 }
 
 bool AiIsVisible_Unknown(Vec3 CamPos, Vec3 LocPos) { // CamPos - моя позиция, LocPos - позиция додича
@@ -845,11 +774,132 @@ Vec3 GetActorLookDirection(CPlayer* pActor)
 	return positionNew;
 }
 
+bool IsObstacleInFront(Vec3 vCurrentPosition, Vec3 vNewDirection) {
+	if (isRay(vCurrentPosition, vNewDirection)) 
+		return true;
+	return false; 
+}
+
+void SetMoveDirection(SOBJECTSTATE& botState, const Vec3& targetPos) {
+	Vec3 direction = targetPos - botState.vMoveDir; // Вычисляем направление к цели
+	botState.vMoveDir = direction.GetNormalized(); // Нормализуем вектор направления
+}
+
+void TurnAround(SOBJECTSTATE& botState) {
+	botState.vMoveDir.x = -botState.vMoveDir.x; // Разворачиваем направление
+	botState.vMoveDir.y = -botState.vMoveDir.y;
+	botState.vMoveDir.z = -botState.vMoveDir.z;
+}
+
+void UpdateAIActor(SOBJECTSTATE& botState, Vec3 vCurrentPosition, Vec3  vNewDirection) {
+	// Проверка наличия препятствий
+	if (IsObstacleInFront(vCurrentPosition, vNewDirection)) {
+		// Если есть препятствие, изменяем направление
+		TurnAround(botState);
+	}
+	else {
+		// Если нет препятствий, продолжаем движение к цели
+		SetMoveDirection(botState, botState.vMoveTarget);
+		botState.fMovementUrgency = 1; // Устанавливаем уровень срочности движения
+	}
+}
+
+#define geom_colltype_player  (1 << 0)
+
+bool IsWallInDirection(const Vec3& position, const Vec3& direction, float distance) {
+	stRayHit hit;
+	Vec3 start = position;
+	Vec3 end = position + direction * distance;
+
+	// Проверяем пересечение луча с физическими объектами
+	if (SSystemGlobalEnvironment::Singleton()->GetIPhysicalWorld()->RayWorldIntersection(start, end,
+		0, geom_colltype_player, // Коллизия только с коллайдерами типа игрока
+		&hit, 1)) // 1 - максимальное количество пересечений
+	{
+		return true; // Если есть пересечение, значит стена присутствует
+	}
+
+	return false; // Нет стен в указанном направлении
+}
+
+Vec3 GetOptimalDirection(AIActor* pAIActor, float moveSpeed, Vec3 forward, Vec3 from, Vec3 to) {
+	Vec3 currentPosition = pAIActor->m_State.vMoveTarget;
+	Vec3 right = Vec3(10,0,0);
+
+	// Определяем возможные направления
+	Vec3 directions[4] = {
+		forward,
+		-forward, // Назад
+		right,
+		-right    // Влево
+	};
+
+	// Инициализация переменной для хранения выбранного направления
+	Vec3 bestDirection = forward; // Начнем с движения вперед
+	bool canMove = false;
+
+	// Проверяем каждое направление на наличие стены
+	for (const auto& dir : directions) {
+		if (!IsBlocked(from, to)) {
+			bestDirection = dir; // Если нет стены, это направление возможно
+			canMove = true;
+			break; // Выбираем первое доступное направление
+		}
+	}
+
+	// Если не удалось найти свободное направление, остаемся на месте
+	if (!canMove) {
+		return currentPosition; // Остаемся на месте
+	}
+
+	// Возвращаем новое целевое положение
+	return currentPosition + bestDirection * moveSpeed;
+}
+
+bool is_wall(Vec3 startPos, Vec3 dir, float maxDistance, Vec3 myPos, Vec3 targetPos) {
+	stRayHit hit;
+
+	if (AiIsVisible(myPos, targetPos))
+	{
+		return false;
+	}
+
+
+	int result = SSystemGlobalEnvironment::Singleton()->GetIPhysicalWorld()->RayWorldIntersection(
+		startPos,                       // начало луча
+		dir * maxDistance,             // направление и длина * maxDistance
+		ent_all,                       // типы сущностей, которые нужно учитывать
+		rwi_stop_at_pierceable | rwi_colltype_any, // флаги
+		&hit,                          // результат попадания
+		1                              // макс. число хитов
+	);
+	if (result) 
+		return true;
+	return false;
+
+
+}
+
+
 void AiUpdateActorMovement(AIActor* pAIActor) {
 	SSystemGlobalEnvironment* pSSGE = SSystemGlobalEnvironment::Singleton(); if (!pSSGE) return;
 	IPhysicalWorld* pPhysicalWorld = pSSGE->GetIPhysicalWorld(); if (!pPhysicalWorld) return;
 
 	bool GOTO_LABEL_22 = false;
+
+	if (pAIActor->eActorArchetype == eAA_Turret)
+	{
+		pAIActor->m_State.vMoveTarget.x = 0;
+		pAIActor->m_State.vMoveTarget.y = 0;
+		pAIActor->m_State.vMoveTarget.z = 0;
+		pAIActor->m_State.vMoveDir.x = 0;
+		pAIActor->m_State.vMoveDir.y = 0;
+		pAIActor->m_State.vMoveDir.z = 0;
+		pAIActor->m_State.fMovementUrgency = 0;
+		pAIActor->m_State.fDesiredSpeed = 0;
+		pAIActor->i = 0;
+		return;
+	}
 
 	if (!pAIActor->pTarget) {
 		pAIActor->m_State.vMoveTarget.x = 0;
@@ -860,9 +910,22 @@ void AiUpdateActorMovement(AIActor* pAIActor) {
 		pAIActor->m_State.vMoveDir.z = 0;
 		pAIActor->m_State.fMovementUrgency = 0;
 		pAIActor->m_State.fDesiredSpeed = 0;
+		pAIActor->i = 0;
 		return;
 	}
 
+	if (pAIActor->eActorArchetype == eAA_Sniper) {
+		pAIActor->m_State.vMoveTarget.x = 0;
+		pAIActor->m_State.vMoveTarget.y = 0;
+		pAIActor->m_State.vMoveTarget.z = 0;
+		pAIActor->m_State.vMoveDir.x = 0;
+		pAIActor->m_State.vMoveDir.y = 0;
+		pAIActor->m_State.vMoveDir.z = 0;
+		pAIActor->m_State.fMovementUrgency = 0;
+		pAIActor->m_State.fDesiredSpeed = 0;
+		pAIActor->i = 0;
+		return;
+	}
 
 
 
@@ -880,9 +943,13 @@ void AiUpdateActorMovement(AIActor* pAIActor) {
 
 	float fDistance = AiGetDistance(vActorWorldPos, vTargetWorldPos);
 
+	//printf("%f\n", fDistance);
+
 	if (fDistance <= 4.0f)
 		vTargetWorldPos = GetActorLookDirection(pAIActor->pActor);
 
+	pAIActor->m_State.vInflectionPoint = Vec3_tpl<float>(5.0f, 0.0f, 0.0f);
+	pAIActor->m_State.fForcedNavigationSpeed = 5.0f;
 
 	if (fDistance <= 1.5f) {
 		pAIActor->m_State.vMoveTarget.x = 0;
@@ -893,6 +960,7 @@ void AiUpdateActorMovement(AIActor* pAIActor) {
 		pAIActor->m_State.vMoveDir.z = 0;
 		pAIActor->m_State.fMovementUrgency = 0;
 		pAIActor->m_State.fDesiredSpeed = 0;
+		pAIActor->i = 0;
 		return;
 	}
 
@@ -905,6 +973,7 @@ void AiUpdateActorMovement(AIActor* pAIActor) {
 		pAIActor->m_State.vMoveDir.z = 0;
 		pAIActor->m_State.fMovementUrgency = 0;
 		pAIActor->m_State.fDesiredSpeed = 0;
+		pAIActor->i = 0;
 		return;
 	}
 
@@ -930,6 +999,9 @@ void AiUpdateActorMovement(AIActor* pAIActor) {
 		}
 	}
 
+
+
+
 	//if (!AiIsVisible_Unknown(vActorHeadPos, vTargetHeadPos)) {
 	//	pAIActor->m_State.vMoveTarget.x = 0;
 	//	pAIActor->m_State.vMoveTarget.y = 0;
@@ -953,6 +1025,7 @@ void AiUpdateActorMovement(AIActor* pAIActor) {
 		pAIActor->m_State.vMoveDir.z = 0;
 		pAIActor->m_State.fMovementUrgency = 0;
 		pAIActor->m_State.fDesiredSpeed = 0;
+		pAIActor->i = 0;
 		return;
 	}
 
@@ -965,18 +1038,156 @@ void AiUpdateActorMovement(AIActor* pAIActor) {
 		pAIActor->m_State.vMoveDir.z = 0;
 		pAIActor->m_State.fMovementUrgency = 0;
 		pAIActor->m_State.fDesiredSpeed = 0;
+		pAIActor->i = 0;
 		return;
 	}
 
 
-	if (!GOTO_LABEL_22) {
 
-		pAIActor->m_State.vMoveTarget = vTargetWorldPos;
+	//printf("{%i, %i, %i}\n", pAIActor->pActor->GetEntity()->GetWorldTM().GetTranslation().x, pAIActor->pActor->GetEntity()->GetWorldTM().GetTranslation().y, pAIActor->pActor->GetEntity()->GetWorldTM().GetTranslation().z);
+
+	Vec3 p = pAIActor->pActor->GetEntity()->GetWorldTM().GetTranslation();
+
+	bool IsVisible = false;
+
+	CPlayerV2* pActorPlayer = pAIActor->pActor->GetPlayerV2(); if (!pActorPlayer) return;
+	Vec3 vDir = pActorPlayer->m_viewQuatFinal.ToForwardVector();
+	vDir.GetNormalized();
+
+	Vec3 positionNew = pAIActor->pActor->GetEntity()->GetWorldTM().GetTranslation();
+	positionNew += vDir; //вперед
+	Vec3 positionNewDown = pAIActor->pActor->GetEntity()->GetWorldTM().GetTranslation();
+	positionNewDown += vDir * -1.25; // назад
+	Vec3 right = Vec3(10, 0, 0); // вправо
+
+
+	static uint64_t Timer{ 0 };
+
+	stRayHit hit;
+
+	
+
+
+	//pAIActor->m_State.vMoveTarget = vTargetHeadPos;
+
+
+		//pAIActor->m_State.vMoveTarget = right;
+
+	if (pAIActor->eActorArchetype == eAA_Cyborg) {
+		pAIActor->m_State.vMoveTarget = vTargetHeadPos;
 		pAIActor->m_State.vMoveDir.x = 1;
 		pAIActor->m_State.vMoveDir.y = 0;
 		pAIActor->m_State.vMoveDir.z = 0;
 		pAIActor->m_State.fMovementUrgency = 1;
+		pAIActor->m_State.fDesiredSpeed = pAIActor->fSpeed;
+		return;
 	}
+	if (pAIActor->eActorArchetype == eAA_CyborgBarrelman) {
+		pAIActor->m_State.vMoveTarget = vTargetHeadPos;
+		pAIActor->m_State.vMoveDir.x = 1;
+		pAIActor->m_State.vMoveDir.y = 0;
+		pAIActor->m_State.vMoveDir.z = 0;
+		pAIActor->m_State.fMovementUrgency = 1;
+		pAIActor->m_State.fDesiredSpeed = pAIActor->fSpeed;
+		return;
+	}
+	if (pAIActor->eActorArchetype == eAA_CyborgCrusher) {
+		pAIActor->m_State.vMoveTarget = vTargetHeadPos;
+		pAIActor->m_State.vMoveDir.x = 1;
+		pAIActor->m_State.vMoveDir.y = 0;
+		pAIActor->m_State.vMoveDir.z = 0;
+		pAIActor->m_State.fMovementUrgency = 1;
+		pAIActor->m_State.fDesiredSpeed = pAIActor->fSpeed;
+		return;
+	}
+	if (pAIActor->eActorArchetype == eAA_CyborgDestroyer) {
+		pAIActor->m_State.vMoveTarget = vTargetHeadPos;
+		pAIActor->m_State.vMoveDir.x = 1;
+		pAIActor->m_State.vMoveDir.y = 0;
+		pAIActor->m_State.vMoveDir.z = 0;
+		pAIActor->m_State.fMovementUrgency = 1;
+		pAIActor->m_State.fDesiredSpeed = pAIActor->fSpeed;
+		return;
+	}
+	if (pAIActor->eActorArchetype == eAA_CyborgScreamer) {
+		pAIActor->m_State.vMoveTarget = vTargetHeadPos;
+		pAIActor->m_State.vMoveDir.x = 1;
+		pAIActor->m_State.vMoveDir.y = 0;
+		pAIActor->m_State.vMoveDir.z = 0;
+		pAIActor->m_State.fMovementUrgency = 1;
+		pAIActor->m_State.fDesiredSpeed = pAIActor->fSpeed;
+		return;
+	}
+	if (pAIActor->eActorArchetype == eAA_CyborgTurtle) {
+		pAIActor->m_State.vMoveTarget = vTargetHeadPos;
+		pAIActor->m_State.vMoveDir.x = 1;
+		pAIActor->m_State.vMoveDir.y = 0;
+		pAIActor->m_State.vMoveDir.z = 0;
+		pAIActor->m_State.fMovementUrgency = 1;
+		pAIActor->m_State.fDesiredSpeed = pAIActor->fSpeed;
+		return;
+	}
+	if (pAIActor->eActorArchetype == eAA_Melee) {
+		pAIActor->m_State.vMoveTarget = vTargetHeadPos;
+		pAIActor->m_State.vMoveDir.x = 1;
+		pAIActor->m_State.vMoveDir.y = 0;
+		pAIActor->m_State.vMoveDir.z = 0;
+		pAIActor->m_State.fMovementUrgency = 1;
+		pAIActor->m_State.fDesiredSpeed = pAIActor->fSpeed;
+		return;
+	}
+
+
+	if (AiIsVisible(vActorHeadPos, vTargetHeadPos))
+	{
+		if (pAIActor->i >= 0) {
+			pAIActor->m_State.vMoveTarget.x = 0;
+			pAIActor->m_State.vMoveTarget.y = 0;
+			pAIActor->m_State.vMoveTarget.z = 0;
+			pAIActor->m_State.vMoveDir.x = 0;
+			pAIActor->m_State.vMoveDir.y = 0;
+			pAIActor->m_State.vMoveDir.z = 0;
+		}
+		if (pAIActor->i >= 60) {
+			pAIActor->m_State.vMoveTarget = vTargetHeadPos;
+			pAIActor->m_State.vMoveDir.x = 1;
+			pAIActor->m_State.vMoveDir.y = 0;
+			pAIActor->m_State.vMoveDir.z = 0;
+		}
+		if (pAIActor->i >= 200) {
+			pAIActor->i = 0;
+		}
+	}
+	else {
+
+		if (pAIActor->i >= 0) {
+			pAIActor->m_State.vMoveTarget = vTargetHeadPos;
+		}
+		if (pAIActor->i >= 270) {
+			pAIActor->m_State.vMoveTarget.x = positionNew.x += 2.25f;
+			pAIActor->m_State.vMoveTarget.y = positionNew.y;
+			pAIActor->m_State.vMoveTarget.z = positionNew.z;
+		}
+		if (pAIActor->i >= 470)
+		{
+			//pAIActor->i = 0;
+			pAIActor->m_State.vMoveTarget = positionNewDown;
+		}
+		if (pAIActor->i >= 570) {
+			pAIActor->i = 0;
+		}
+		pAIActor->m_State.vMoveDir.x = 1;
+		pAIActor->m_State.vMoveDir.y = 0;
+		pAIActor->m_State.vMoveDir.z = 0;
+	}
+
+	//printf("%i\n", pAIActor->i);
+	pAIActor->i++;
+
+	
+
+	pAIActor->m_State.fMovementUrgency = 1;
+
 
 	if (fDistance <= 6.0f && (pAIActor->eActorArchetype == eAA_ShieldBearer || pAIActor->eActorArchetype == eAA_SMGShieldBearer)) {
 		pAIActor->m_State.fDesiredSpeed = pAIActor->fSpeed * 2;
@@ -1083,12 +1294,17 @@ void AiUpdateActorShoot_OLD_CODE(AIActor* pAIActor, __int64 frameStartTime) {
 	pAIActor->m_State.vShootTargetPos = vTargetHeadPos;
 	pAIActor->m_State.vAimTargetPos = vTargetHeadPos;
 	pAIActor->m_State.vLookTargetPos = vTargetHeadPos;
+	pAIActor->m_State.vTargetPos = vTargetHeadPos;
+	pAIActor->m_State.bTargetEnabled = 1;
+	pAIActor->m_State.aimObstructed = 0;
+	pAIActor->m_State.allowStrafing = 1;
 
-	//pAIActor->m_State.vDesiredBodyDirectionAtTarget = vTargetHeadPos;
-	//pAIActor->m_State.aimTargetIsValid = true;
-	//pAIActor->m_State.bodystate = 0;
-	//
-	//pAIActor->m_State.eLookStyle = LOOKSTYLE_HARD_NOLOWER;
+	if (pAIActor->eActorArchetype == eAA_Turret) {
+		pAIActor->m_State.vDesiredBodyDirectionAtTarget = vTargetHeadPos;
+		pAIActor->m_State.aimTargetIsValid = true;
+		pAIActor->m_State.bodystate = 0;
+		pAIActor->m_State.eLookStyle = LOOKSTYLE_HARD_NOLOWER;
+	}
 
 	Vec3 vActorWorldPos;
 	Vec3 vTargetWorldPos;
@@ -1137,6 +1353,9 @@ void AiUpdateActorShoot_OLD_CODE(AIActor* pAIActor, __int64 frameStartTime) {
 
 void AiUpdateActorShoot(AIActor* pAIActor, __int64 frameStartTime)
 {
+	IGameFramework* pFramework = IGameFramework::Singlenton(); if (!pFramework) return;
+	CGameRules* pGameRules = pFramework->GetCurrentGameRules(); if (!pGameRules) return;
+	const char* levelName = pFramework->GetLevelName();
 
 	if (pAIActor->pTarget == 0) {
 		pAIActor->m_State.fire = eAIFS_Off;
@@ -1163,6 +1382,20 @@ void AiUpdateActorShoot(AIActor* pAIActor, __int64 frameStartTime)
 		}
 	}
 
+	if (pWeaponGeneral && CWeaponGeneral_IsReloading(pWeaponGeneral)) {
+		pAIActor->m_State.vMoveTarget.x = 0;
+		pAIActor->m_State.vMoveTarget.y = 0;
+		pAIActor->m_State.vMoveTarget.z = 0;
+		pAIActor->m_State.vMoveDir.x = 0;
+		pAIActor->m_State.vMoveDir.y = 0;
+		pAIActor->m_State.vMoveDir.z = 0;
+		pAIActor->m_State.fMovementUrgency = 0;
+		pAIActor->m_State.fDesiredSpeed = 0;
+		pAIActor->i = 0;
+		return;
+	}
+
+
 	Vec3 pMyPos = pAIActor->pActor->GetEntity()->GetWorldTM().GetTranslation();
 	Vec3 myPos = { pMyPos.x, pMyPos.y, pMyPos.z };
 
@@ -1181,6 +1414,7 @@ void AiUpdateActorShoot(AIActor* pAIActor, __int64 frameStartTime)
 		targetBodyPos = pAIActor->pTarget->pEntity->GetWorldTM().GetTranslation();
 	}
 
+
 	if (!AiIsVisible(vActorHeadPos, targetBodyPos)) {
 		pAIActor->m_State.vShootTargetPos.x = 0;
 		pAIActor->m_State.vShootTargetPos.y = 0;
@@ -1198,12 +1432,44 @@ void AiUpdateActorShoot(AIActor* pAIActor, __int64 frameStartTime)
 		return;
 	}
 
+	pAIActor->m_State.vTargetPos = targetBodyPos;
+	pAIActor->m_State.bTargetEnabled = 1;
+	pAIActor->m_State.aimObstructed = 0;
+	pAIActor->m_State.allowStrafing = 1;
+
+	if (pAIActor->eActorArchetype == eAA_Turret) {
+		pAIActor->m_State.vDesiredBodyDirectionAtTarget = targetBodyPos;
+		pAIActor->m_State.aimTargetIsValid = true;
+		pAIActor->m_State.bodystate = 0;
+		pAIActor->m_State.eLookStyle = LOOKSTYLE_HARD_NOLOWER;
+	}
+
+	if (pAIActor->pTarget->pActor->Health() <= 5)
+	{
+		if (strstr(levelName, "raid") || strstr(levelName, "mars")) {
+			typedef void(__fastcall* KillPlayer)(CGameRules* this1,
+				CPlayer* pPlayer,
+				unsigned int shooterId,
+				int weaponGameObjectId,
+				float damage,
+				int material,
+				unsigned int hit_type,
+				Vec3_tpl<float>* impulse,
+				unsigned int projectileId,
+				int targetsCoreTeam,
+				int shootersCoreTeam,
+				bool bExplosion);
+			Vec3 p = Vec3(1, 1, 1);
+			KillPlayer((KillPlayer)0x1411E2840)(pGameRules, pAIActor->pTarget->pActor, pAIActor->pActor->GetEntity()->Id(), 11, 5, pGameRules->GetHitMaterialId("mat_torso"), 1, &p, rand(), 1, 1, TRUE);
+		}
+	}
+
+
 	if ((pAIActor->eActorArchetype == eAA_Melee || pAIActor->eActorArchetype == eAA_ShieldBearer || pAIActor->eActorArchetype == eAA_SMGShieldBearer) && distanceToTarget < 6) {
 		if (distanceToTarget < 1.5f) {
 			pAIActor->m_State.fire = eAIFS_Off;
 			pAIActor->m_State.fireSecondary = eAIFS_Off;
 			pAIActor->m_State.fireMelee = eAIFS_On;
-
 		}
 		else {
 			pAIActor->m_State.fire = eAIFS_Off;
@@ -1226,6 +1492,19 @@ void AiUpdateActorShoot(AIActor* pAIActor, __int64 frameStartTime)
 			if (frameStartTime - pAIActor->iTempStartShootTime > 200000) {
 				pAIActor->iTempStartShootTime = frameStartTime;
 			}
+			static uint64_t Timer1{ 0 };
+			if (GetTickCount64() - Timer1 > 750) {
+				if (strstr(levelName, "raid") || strstr(levelName, "mars"))
+				{
+					pAIActor->pTarget->pActor->SetHealth(pAIActor->pTarget->pActor->Health() - 5);
+					pAIActor->pTarget->pActor->SetArmor(pAIActor->pTarget->pActor->Armor() - 5);
+				}
+				Timer1 = GetTickCount64();
+			}
+
+		
+
+
 		}
 		else {
 			pAIActor->m_State.fire = eAIFS_Off;
@@ -1418,6 +1697,56 @@ void AiUpdateWeapon(AIActor* pAIActor) {
 	}
 }*/
 
+void AiUpdateActorKillNotAvailable(AIActor* pAIActor) {
+	static uint64_t Timer{ 0 };
+	IGameFramework* pGameFramework = IGameFramework::Singlenton(); if (!pGameFramework) return;
+	CGameRules* pGameRules = pGameFramework->GetCurrentGameRules(); if (!pGameRules) return;
+
+	if (!pAIActor->pTarget) {
+		return;
+	}
+	if (!pAIActor->pActor) {
+		return;
+	}
+
+	Vec3 vActorHeadPos;
+	CActor_GetBonePos(pAIActor->pActor, &vActorHeadPos, "Bip01 Head");
+
+	Vec3 vTargetHeadPos;
+
+	if (pAIActor->pTarget->pActor) {
+		CActor_GetBonePos(pAIActor->pTarget->pActor, &vTargetHeadPos, "Bip01 Head");
+	}
+	else {
+		vTargetHeadPos = pAIActor->pTarget->pEntity->GetWorldTM().GetTranslation();
+	}
+
+	if (GetTickCount64() - Timer > 20000) {
+		if (AiIsVisible(vActorHeadPos, vTargetHeadPos)) return;
+		typedef void(__fastcall* KillPlayer)(CGameRules* this1,
+			CPlayer* pPlayer,
+			unsigned int shooterId,
+			int weaponGameObjectId,
+			float damage,
+			int material,
+			unsigned int hit_type,
+			Vec3_tpl<float>* impulse,
+			unsigned int projectileId,
+			int targetsCoreTeam,
+			int shootersCoreTeam,
+			bool bExplosion);
+
+
+		Vec3 p = Vec3(1, 1, 9999999);
+		//pAIActor->pActor->GetEntity()->SetPos(p);
+		printf("KillPlayer\n");
+		pAIActor->pActor->SetHealth(5);
+		KillPlayer((KillPlayer)0x1411E2840)(pGameRules, pAIActor->pActor, pAIActor->pActor->GetEntity()->Id(), 11, 5, pGameRules->GetHitMaterialId("mat_torso"), 1, &p, rand(), 1, 1, TRUE);
+		Timer = GetTickCount64();
+
+	}
+}
+
 void __fastcall AiAI_UpdateHook(__int64 frameStartTime1, float frameDeltaTime2)
 {
 	//printf("AiAI_UpdateHook\n");
@@ -1440,6 +1769,7 @@ void __fastcall AiAI_UpdateHook(__int64 frameStartTime1, float frameDeltaTime2)
 
 		AiUpdateActorShoot(pAIActor, frameStartTime);
 		AiUpdateWeapon(pAIActor);
+		AiUpdateActorKillNotAvailable(pAIActor);
 		//AiUpdateActorShoot(pAIActor);
 		CAIProxy_Update(pAIActor->pAIProxy, pAIActor->m_State, true);
 

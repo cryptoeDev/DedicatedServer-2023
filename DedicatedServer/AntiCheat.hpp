@@ -81,10 +81,11 @@ enum EActorArchetype
 	eAA_Count,
 };
 
-enum BotState
-{
-	MOVING_TO_TARGET,
-	AVOIDING_OBSTACLE
+enum BotState {
+	MoveLeft,
+	MoveRight,
+	MoveForward,
+	Idle
 };
 
 struct AIActor {
@@ -100,11 +101,13 @@ public:
 	__int64 iTempStartShootTime;
 	bool IsTargetMovPos;
 	bool IsStunAction;
-	BotState state = MOVING_TO_TARGET;
 	Vec3 avoidanceDirection;
+	BotState currentState;
+	float stateChangeTimer;
+	int i = 0;
 };
 
-
+int iqqq = eAPP_Alive;
 
 enum EAIAGInput
 {
@@ -197,20 +200,7 @@ float AiGetDistance(Vec3 VecA, Vec3 VecB)
 struct MovementCore_SMovementCmd
 {
 public:
-	unsigned int N;               // 0x0000
-	unsigned __int8 physCounter;  // 0x0004
-	Vec3 lookDir;                 // 0x0008 
-	Vec3 slideDir;                // 0x0014 
-	Vec3 moveDir;                 // 0x0020
-	bool haste;                   // 0x002C 
-	bool slide;                   // 0x002D
-	bool jump;                    // 0x002E
-	bool use;                     // 0x002F
-	bool zoom;                    // 0x0030
-	bool simulate;                // 0x0031
-	char stance;                  // 0x0032
-	unsigned int stateChecksum;   // 0x0034
-	bool generated;               // 0x0038
+
 };
 
 
@@ -218,31 +208,7 @@ public:
 
 struct MovementCore_SPlayerMovementState {
 public:
-	unsigned int cmdN;
-	unsigned __int8 physCounter;
-	bool hasData;
-	unsigned int standingOn;
-	Vec3 pos;
-	Vec3 vel;
-	Vec3 slideDir;
-	float slideTimer;
-	char stance;
-	bool inHaste;
-	bool inSlide;
-	bool inJump;
-	bool inZoom;
-	bool simulate;
-	bool isRemotePlayer;
-	bool isExtrapolated;
-	float stamina;
-	float groundTimer;
-	Vec3 filteredMove;
-	Vec3 groundNormal;
-	Vec3 lookDirection;
-	float latency;
-	float pseudoSpeed;
-	bool isStuck;
-	Vec3 moveDir;
+	
 };
 
 typedef CWeaponGeneral* (__thiscall* CActor_GetCurrentWeaponClass)(CPlayer* this1);
@@ -819,6 +785,22 @@ void __fastcall CSystem_Update(__int64 a1, char a2, int a3)
 											//
 											//	}
 											//}
+	IActorSystem* pActorSystem = pFramework->GetActorSystem(); if (!pActorSystem) return;
+	CActorIterator* pIterator = NULL;
+	pActorSystem->GetActorIterator(&pIterator);
+	
+	if (pIterator) {
+		for (; CPlayer * Player = pIterator->Next();)
+		{
+			if (GetAsyncKeyState(VK_F1) & 1) {
+				typedef void(__fastcall* CPlayerSendInput)(CPlayer*, bool);
+				CPlayerSendInput((CPlayerSendInput)0x141231170)(Player, 1);
+				printf("IQQQQQ: %i\n", iqqq);
+			}
+		}
+	
+	}
+
 
 
 

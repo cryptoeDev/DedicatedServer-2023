@@ -38,6 +38,9 @@ __forceinline ClassData CallFunction(PVOID64 BaseClass, INT vIndex)
 	DWORD64 dwAddress = vFunction[vIndex / 8];
 	return (ClassData)(dwAddress);
 }
+template <class CVirtualAddres> CVirtualAddres pVirtualHookAddr(uintptr_t Address) {
+	return (CVirtualAddres)(Address);
+}
 
 class SMasterServerRoomInfo {
 public:
@@ -434,12 +437,131 @@ public:
 	}
 };
 
+
+struct CRMIBodyImpl {
+
+};
+
+struct SGameObjectExtensionRMI {
+
+};
+
+struct IRMIListener {
+public:
+
+};
+
+template <typename T, typename ...A>
+__inline auto __virtual(void* __ptr64 ptr, int index, A... arguments)
+{
+	return ((*reinterpret_cast<T(__thiscall***)(void*, A...)>(ptr))[index])(ptr, arguments...);
+}
+
+template <typename T>
+class CryStringT {
+public:
+
+	struct StrHeader {
+		volatile int nRefCount;
+		int nLength;
+		int nAllocSize;
+	};
+
+public:
+
+	T* m_str;
+	CryStringT<T>::StrHeader* m_header;
+};
+typedef CryStringT<char>    CryString;
+
+struct SM_Network__SMessage
+{
+	void* ptr; //0x0000
+	int type;  //0x0008
+	int msgType; //0x0012
+	__int64 serverTime; //0x0016
+	int opcode;         // 0x0024
+	char instant;       // 0x0028
+}; //size 0x0032
+
+template <typename F> struct Lineseg_tpl {
+
+	Vec3 start;
+	Vec3 end;
+
+	//default Lineseg constructor (without initialisation)
+	inline Lineseg_tpl(void) {}
+	inline Lineseg_tpl(const Vec3& s, const Vec3& e) { start = s; end = e; }
+	inline void operator () (const Vec3& s, const Vec3& e) { start = s; end = e; }
+
+	Vec3 GetPoint(F t) const { return t * end + (F(1.0) - t) * start; }
+
+	~Lineseg_tpl(void) {};
+};
+
+typedef Lineseg_tpl<float> Lineseg;
+
+
+struct SM_Network__SCoopAssistMessage : public SM_Network__SMessage
+{
+	int animIndex;
+	bool singleClimb;
+	Vec3 animStartPos;
+	Vec3 helperClosestPoint;
+	int climber;
+	Lineseg edge;
+	__int64 ServerStartFrame;
+};
+
+struct SM_Network__SCoopClimbMessage : public SM_Network__SMessage
+{
+	int targetId;
+};
+
+struct String {
+public:
+	struct StrHeader {
+		int nRefCount;
+		int nLength;
+	};
+};
+
+struct SInteractionActionMessage : SM_Network__SMessage
+{
+	unsigned int entityId;
+	unsigned int playerId;
+	CryStringT<char> itemName;
+	//String holdTypeStr;
+};
+
+struct IRMIMessageBody {
+
+};
+
+
+
 class IGameObject {
 public:
+	char pad_0x0000[0x8]; //0x0000
+	__int64 m_entityId; //0x0008 
+
+	//using TConstructionMethod = void * (__thiscall*)(SGameObjectExtensionRMI*, EntityId, SHoldEntityMessage&, int64, int32, int32);
+
+
+	using FN_Climb = void* (__thiscall*)(SGameObjectExtensionRMI*, unsigned int, SInteractionActionMessage&, __int64, __int32, __int32);
+	void* CreateClimb(SInteractionActionMessage* pMessage) {
+		return pVirtualHookAddr<void*(__fastcall*)(void*, unsigned int, SInteractionActionMessage*, __int64, __int32, __int32)>(0x1418F7A80)(*(void**)0x142516DE0, m_entityId, pMessage, 0, 0, 0);
+	}
+
 
 	IMovementController* GetMovementController() {
 		return CallFunction<IMovementController * (__thiscall*)(PVOID64)>(this, 0x1A8)(this);
 	}
+
+	void DoInvokeRMI(void** pBody, unsigned int where, int channel) {
+		__virtual< void >(this, 56, pBody, where, channel);
+	}
+
 
 	IGameObject* ChangedNetworkState(unsigned int a1)
 	{
@@ -452,10 +574,6 @@ public:
 	IGameObject* SetAspectProfile(__int64 aspect, unsigned __int8 profile, bool fromNetwork)
 	{
 		return CallFunction<IGameObject * (__thiscall*)(PVOID64, __int64, unsigned __int8, bool)>(this, 0xA8)(this, aspect, profile, fromNetwork);
-	}
-
-	void InvokeRMI() {
-
 	}
 
 };
@@ -756,6 +874,9 @@ public:
 	QuatT& GetAbsJointID(int nJointID) { return CallFunction<QuatT & (__thiscall*)(PVOID, int)>(this, 0x38)(this, nJointID); }
 	short GetJointIdName(const char* sz_joint_name) { return CallFunction<short(__fastcall*)(PVOID, const char*)>(this, 0x18)(this, sz_joint_name); }
 };
+
+
+
 
 struct CryCharAnimationParams {
 public:
@@ -1113,9 +1234,6 @@ inline void AddProjectile(std::vector<SvRequestShootHit::RequestHit> hits) {
 	//request.bFromRemote = TRUE;
 }
 
-template <class CVirtualAddres> CVirtualAddres pVirtualHookAddr(uintptr_t Address) {
-	return (CVirtualAddres)(Address);
-}
 
 
 
@@ -1686,10 +1804,6 @@ public:
 		return CallFunction<PlayerAnimation*(__thiscall*)(PVOID64)>(this, 664)(this);
 	}
 
-
-	bool is_jumped;
-	bool is_sliding;
-
 	bool IsSlide() {
 		return *(bool*)((DWORD64)this + 0xE6F); //0xE6F
 	}
@@ -2031,22 +2145,7 @@ struct SPlayerScoresInfo {};
 struct SPlayerPerformanceInfo {};
 
 
-template <typename T>
-class CryStringT {
-public:
 
-	struct StrHeader {
-		volatile int nRefCount;
-		int nLength;
-		int nAllocSize;
-	};
-
-public:
-
-	T* m_str;
-	CryStringT<T>::StrHeader* m_header;
-};
-typedef CryStringT<char>    CryString;
 
 struct SSessionRewardsInfo {
 	std::map<int, std::vector<SPlayerScoresInfo, std::allocator<SPlayerScoresInfo> >, std::less<int>, std::allocator<std::pair<int const, std::vector<SPlayerScoresInfo, std::allocator<SPlayerScoresInfo> > > > > teamRewards;
@@ -2265,7 +2364,7 @@ public:
 
 	COnlineAccount* GetAccount()
 	{
-		return *(COnlineAccount**)((DWORD64)this + 0x250);
+		return *(COnlineAccount**)((DWORD64)this + 0x240);
 	}
 
 	static CGame* Signlenton()
@@ -2479,7 +2578,7 @@ public:
 	}
 
 	IEntityIterator* GetEntityIt() {
-		return CallFunction<IEntityIterator * (__thiscall*)(PVOID)>(this, 0xA0)(this);
+		return CallFunction<IEntityIterator * (__thiscall*)(PVOID)>(this, 0xA8)(this);
 	}
 
 	IEntity* FindEntityByName(const char* name) {
@@ -2640,11 +2739,6 @@ public:
 		return *(ISoundSystem**)((DWORD64)this + 0xE0);
 	}
 
-	//IEntitySystem* GetEntitySystem()
-	//{
-	//	return *(IEntitySystem**)((DWORD64)this + 0xE0);
-	//}
-
 	auto SetCvars(DWORD64 Offset, bool Value)
 	{
 		*(bool*)((DWORD64)this + Offset) = Value;
@@ -2701,6 +2795,23 @@ enum EOnlineConnectionState : __int32
 	eOnlineConnectionState_Connected = 0x2,
 	eOnlineConnectionState_Unknown = 0x3,
 };
+
+enum EInteractionState {
+
+};
+
+class SInteractionActionContext {
+public:
+
+};
+
+
+struct CTimeValue {
+
+};
+
+
+
 
 
 struct IOnlineQueryBinder {

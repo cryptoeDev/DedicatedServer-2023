@@ -88,8 +88,8 @@ class CryCRT
 public:
 	static float sqrt(float number);
 	static float isqrt_safe_tpl(float op);
-//	static PVOID memcpy(PVOID dest, const PVOID src, uint64 count);
-//	static PVOID memset(PVOID src, int val, uint64 count);
+	//	static PVOID memcpy(PVOID dest, const PVOID src, uint64 count);
+	//	static PVOID memset(PVOID src, int val, uint64 count);
 	static char strstr(char _Str, char _SubStr);
 	static int strcmp(char cs, char ct);
 	static PVOID RtlSecureZeroMemory(PVOID  ptr, SIZE_T cnt);
@@ -216,7 +216,10 @@ template <typename F> struct Vec2_tpl {
 	}
 };
 
-
+float cry_random(float min, float max)
+{
+	return min + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (max - min)));
+}
 
 template <typename F> struct Vec3_tpl {
 	F x, y, z;
@@ -233,10 +236,22 @@ template <typename F> struct Vec3_tpl {
 	__forceinline Vec3_tpl operator-() const {
 		return Vec3_tpl(-x, -y, -z);
 	}
-	
+
 	__forceinline F Dot(const Vec3_tpl<F>& other) const
 	{
 		return x * other.x + y * other.y + z * other.z;
+	}
+
+	__forceinline Vec3_tpl GetRotated(const Vec3_tpl& axis, float angle) const {
+
+		/*
+
+		 Matrix34 rotationMatrix = Matrix34::CreateRotationAA(angle, axis);
+		return rotationMatrix.TransformVector(*this);
+
+		*/
+
+		return Vec3_tpl(0, 0, 0);
 	}
 
 	__forceinline  float __sqrt(float number)
@@ -262,7 +277,7 @@ template <typename F> struct Vec3_tpl {
 		z = zt;
 	}
 
-	
+
 
 
 	__forceinline Vec3_tpl Scale(float factor)
@@ -270,7 +285,7 @@ template <typename F> struct Vec3_tpl {
 		return { x * factor, y * factor, z * factor };
 	}
 
-	__forceinline float GetLength()  
+	__forceinline float GetLength()
 	{
 		return __sqrt(x * x + y * y + z * z);
 	}
@@ -288,6 +303,14 @@ template <typename F> struct Vec3_tpl {
 
 		return *this;
 	}
+
+	__forceinline Vec3_tpl GetOrthogonal() const
+	{
+		// Находим перпендикулярный вектор к текущему
+		// Например, если вектор (x, y, z), то перпендикулярный может быть (y, -x, 0)
+		return Vec3_tpl(-y, x, 0).GetNormalized();
+	}
+
 
 	static  __forceinline Vec3_tpl CreateLerp(Vec3_tpl& v1, Vec3_tpl& v2, float t)
 	{
@@ -522,7 +545,11 @@ template <typename F> struct Matrix34_tpl {
 		m23 = F(vPos.z);
 		return *this;
 	}
+
+
+
 };
+
 
 
 
@@ -559,6 +586,7 @@ public:
 		v.y *= dist;
 		v.z *= dist;
 	}
+
 
 
 

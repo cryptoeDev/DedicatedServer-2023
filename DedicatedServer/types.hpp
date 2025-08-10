@@ -379,6 +379,14 @@ SADSDFSDFSDFSDF29 SADSDFSDFSDFSDF29_p;
 typedef float*(__fastcall* SADSDFSDFSDFSDF30)(__int64 a1, float* a2, void* a3, float* a4, float* a5);
 SADSDFSDFSDFSDF30 SADSDFSDFSDFSDF30_p;
 
+
+typedef void(__fastcall* SADSDFSDFSDFSDF31)(__int64 a1, float* a2, void* a3, float* a4, float* a5);
+SADSDFSDFSDFSDF31 SADSDFSDFSDFSDF31_p;
+
+
+
+
+
 typedef bool(__fastcall* FCGameRules_NetSerialize)(CGameRules* this1, __int64 ser, EEntityAspects aspect, unsigned __int8 profile);
 FCGameRules_NetSerialize CGameRules_NetSerialize_p = (FCGameRules_NetSerialize)0x14108EA80;
 
@@ -567,3 +575,50 @@ typedef bool(__fastcall* SerializeClass)(CActor* this1,
     unsigned __int8 profile,
     int pflags);
 SerializeClass CActor_NetSerialize_p = (SerializeClass)0x141234800;
+
+struct SPathFindParams {
+public:
+    char pad_0x00010[0x10];
+    IEntityCSM* m_pEntity;
+};
+
+typedef __int64(__fastcall* ShieldClass)(__int64 a1, unsigned __int16 a2, SPathFindParams* a3);
+ShieldClass TeleportShield_p = (ShieldClass)0x1403C91A0;
+
+struct SIngameShopOffer {
+    void* __vftable /*VFT*/;
+    CryStringT<char> name;
+    CryStringT<char> category;
+    int classes;
+    CryStringT<char> description;
+    CryStringT<char> icon;
+    CryStringT<char> label;
+    CryStringT<char> sound;
+    void* subitems;
+    void* currencyValues;
+};
+
+
+
+struct CIngameShop {
+public:
+    bool m_isInSync;
+    unsigned int m_soundId;
+    void* m_IngameShopList;
+    void* m_IngameShopListIterator;
+};
+
+
+
+
+typedef void(__fastcall* ShopBuyOfferClass)(CIngameShop* this1, SIngameShopOffer const* offer, unsigned int entityId);
+ShopBuyOfferClass ShopBuyOffer_p = (ShopBuyOfferClass)0x14125B6A0;
+
+
+typedef void(__fastcall* CSM_InteractionActionClass)(CSM_InteractionAction* this1, __int64 a2, bool a3);
+CSM_InteractionActionClass CSM_InteractionAction_p = (CSM_InteractionActionClass)0x1418F6A50;
+
+
+
+
+
